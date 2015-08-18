@@ -1,18 +1,16 @@
 package ${package};
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+<#list imports as class>
+import ${class};
+</#list>
 
-@RestController
-@RequestMapping("${raml.baseUri!"/"}")
-public interface ${className} {
+@${classRef("org.springframework.web.bind.annotation.RestController")}
+@${classRef("org.springframework.web.bind.annotation.RequestMapping")}("${raml.baseUri!"/"}")
+public interface ${classRef(resourceClassName)} {
+    <#list actionDefinitions as actionDefinition>
 
-    <#list actions as action>
-    @RequestMapping(value = "${action.resource.relativeUri}", method = RequestMethod.${action.type.name()})
-    public ${actionMethodName(action)}(<#list action.resource.resolvedUriParameters?keys as paramName>
-            <#assign param=action.resource.resolvedUriParameters[paramName]>
-            @PathVariable("${paramName}") ${javaType(param.type)} ${paramName}<#sep>, </#sep>
-        </#list>);
+    @${classRef("org.springframework.web.bind.annotation.RequestMapping")}(value = "${actionDefinition.action.resource.uri}", method = ${classRef("org.springframework.web.bind.annotation.RequestMethod")}.${actionDefinition.action.type.name()})
+    <#if actionDefinition.responseBodySchema??>${schemaClassRef(actionDefinition.responseBodySchema)}<#else>void</#if> ${actionMethodName(actionDefinition.action)}(<#if actionDefinition.requestBodySchema??>@RequestBody ${schemaClassRef(actionDefinition.requestBodySchema)} ${javaName(actionDefinition.requestBodySchema)}<#if actionDefinition.uriParameterDefinitions?has_content>, </#if></#if><#list actionDefinition.uriParameterDefinitions as uriParamDef>@${classRef("org.springframework.web.bind.annotation.PathVariable")}("${uriParamDef.name}") ${classRef(uriParamDef.javaType)} ${uriParamDef.name}<#sep>, </#sep></#list>);
     </#list>
 
 }

@@ -34,6 +34,7 @@
         <freemarker.version>2.3.23</freemarker.version>
         <guava.version>18.0</guava.version>
         <commons-lang.version>2.1.5</commons-lang.version>
+        <antlr.version>3.5.2</antlr.version>
 
         <takari-plugin-testing.version>2.5.1</takari-plugin-testing.version>
         <takari-lifecycle-plugin.version>1.11.7</takari-lifecycle-plugin.version>
@@ -41,6 +42,9 @@
 
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <jsonschema2pojo.version>0.4.13</jsonschema2pojo.version>
+        <hamcrest.version>1.3</hamcrest.version>
+        <antlr3-maven-plugin.version>3.5.2</antlr3-maven-plugin.version>
     </properties>
 
     <dependencies>
@@ -48,7 +52,7 @@
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-core</artifactId>
             <version>${maven.version}</version>
-            <scope>test</scope>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
@@ -75,6 +79,11 @@
             <version>${raml-parser.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.jsonschema2pojo</groupId>
+            <artifactId>jsonschema2pojo-core</artifactId>
+            <version>${jsonschema2pojo.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.freemarker</groupId>
             <artifactId>freemarker</artifactId>
             <version>${freemarker.version}</version>
@@ -89,12 +98,22 @@
             <artifactId>commons-lang</artifactId>
             <version>${commons-lang.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr</artifactId>
+            <version>${antlr.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <version>${hamcrest.version}</version>
         </dependency>
         <dependency>
             <groupId>io.takari.maven.plugins</groupId>
@@ -116,7 +135,18 @@
                 <plugin>
                     <groupId>io.takari.maven.plugins</groupId>
                     <artifactId>takari-lifecycle-plugin</artifactId>
+                    <version>${takari-lifecycle-plugin.version}</version>
                     <extensions>true</extensions>
+                </plugin>
+                <plugin>
+                    <groupId>org.antlr</groupId>
+                    <artifactId>antlr3-maven-plugin</artifactId>
+                    <version>${antlr3-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>1.9.1</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -134,7 +164,40 @@
                     </execution>
                 </executions>
             </plugin>
-
+            <plugin>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr3-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-extension-tag-lexer</id>
+                        <goals>
+                            <goal>antlr</goal>
+                        </goals>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-sources/antlr</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-generated-sources</id>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <phase>process-sources</phase>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/antlr</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 

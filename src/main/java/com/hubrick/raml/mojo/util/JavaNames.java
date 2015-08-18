@@ -15,9 +15,11 @@
  */
 package com.hubrick.raml.mojo.util;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.hubrick.raml.mojo.util.impl.BasicIndexed;
 import freemarker.template.utility.StringUtil;
+import org.apache.commons.lang.StringUtils;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -33,6 +35,8 @@ import static java.util.stream.StreamSupport.stream;
  */
 public final class JavaNames {
 
+    public static final Joiner PACKAGE_JOINER = Joiner.on('.').skipNulls();
+
     private JavaNames() {
     }
 
@@ -45,9 +49,26 @@ public final class JavaNames {
                 .collect(Collectors.joining());
     }
 
+    public static String toSimpleClassName(String className) {
+        return StringUtils.capitalize(toJavaName(className));
+    }
+
     private static <T> Function<T, Indexed<T>> indexed() {
         final AtomicInteger index = new AtomicInteger();
         return (value) -> new BasicIndexed<>(index.getAndIncrement(), value);
     }
 
+    public static String joinPackageMembers(String basePackage, String modelPackage) {
+        return PACKAGE_JOINER.join(basePackage, modelPackage);
+    }
+
+    public static String getSimpleClassName(String className) {
+        checkArgument(!Strings.isNullOrEmpty(className), "Fully qualified class name was null or empty");
+        final int dotPos = className.lastIndexOf('.');
+        if (dotPos > 0) {
+            return className.substring(dotPos + 1);
+        } else {
+            return className;
+        }
+    }
 }

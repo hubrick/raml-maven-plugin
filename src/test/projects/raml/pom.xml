@@ -31,12 +31,18 @@
                 <version>@pom.version@</version>
                 <configuration>
                     <basePackage>tld.example.resources</basePackage>
+                    <modelPackage>model</modelPackage>
                     <fileset>
                         <directory>${basedir}/src/main/raml</directory>
                         <includes>
                             <include>**/*.raml</include>
                         </includes>
                     </fileset>
+                    <schemaGenerator>
+                        <annotationStyle>JACKSON</annotationStyle>
+                        <generateBuilders>true</generateBuilders>
+                        <usePrimitives>false</usePrimitives>
+                    </schemaGenerator>
                 </configuration>
             </plugin>
         </plugins>

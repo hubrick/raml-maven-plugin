@@ -20,6 +20,8 @@ import io.takari.maven.testing.TestMavenRuntime;
 import io.takari.maven.testing.TestResources;
 import org.junit.Rule;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
@@ -31,6 +33,8 @@ import static io.takari.maven.testing.TestResources.assertFilesPresent;
  */
 public class SpringWebResourceMojoTest {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(SpringWebResourceMojoTest.class);
+
     @Rule
     public final TestResources resources = new TestResources();
 
@@ -41,9 +45,11 @@ public class SpringWebResourceMojoTest {
     public void testShouldGenerateResourceInterface() throws Exception {
         final File basedir = resources.getBasedir("raml");
 
+        LOGGER.debug("Basedir: {}", basedir);
+
         maven.executeMojo(basedir, "spring-web");
 
-        assertFilesPresent(basedir, "target/generated-sources/tld/example/resources/UsersResource.java");
+        assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
     }
 
 }
