@@ -1,13 +1,33 @@
 #%RAML 0.8
 title:
 
-/users/{userId}/achievements:
-  get:
-    responses:
-      200:
-        body:
-          application/json:
-            example: |
-              [
-                {"id": "99648e19-fcf4-4227-b9e9-99b0fc5e3f2c"}
-              ]
+/users:
+  post:
+    body:
+      application/json:
+        schema: user
+  /{userId}:
+    uriParameters:
+      userId:
+        type: string
+    get:
+      responses:
+        200:
+          body:
+            application/json:
+              schema: user
+              example: |
+                [
+                  {"id": "99648e19-fcf4-4227-b9e9-99b0fc5e3f2c"}
+                ]
+
+schemas:
+  - user: |
+      {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "types.json#/definitions/uuid" },
+          "name": { "type": "string" },
+          "birthdate": { "type": "object", "javaType": "Date" }
+        }
+      }

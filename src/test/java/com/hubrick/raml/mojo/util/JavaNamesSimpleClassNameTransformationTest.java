@@ -28,27 +28,28 @@ import static org.junit.Assert.assertThat;
  * @since 1.0.0
  */
 @RunWith(Parameterized.class)
-public class JavaNamesTest {
+public class JavaNamesSimpleClassNameTransformationTest {
 
     @Parameterized.Parameters(name = "{index}: toJavaName(\"{0}\").equals(\"{1}\")")
     public static String[][] getParameters() {
         return new String[][]{
-                {"user-id", "userId"},
-                {"userId", "userId"}
+                {"user-id", "UserId"},
+                {"userId", "UserId"},
+                {"user", "User"},
         };
     }
 
     private String input;
     private String expectation;
 
-    public JavaNamesTest(String input, String expectation) {
+    public JavaNamesSimpleClassNameTransformationTest(String input, String expectation) {
         this.input = input;
         this.expectation = expectation;
     }
 
     @Test
     public void testShouldTransformToJavaName() throws Exception {
-        assertThat(JavaNames.toJavaName(input), equalTo(expectation));
+        assertThat(JavaNames.toSimpleClassName(input), equalTo(expectation));
     }
 
 }
