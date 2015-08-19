@@ -23,6 +23,7 @@ import com.hubrick.raml.codegen.InlineSchemaReference;
 import com.hubrick.raml.codegen.QueryParameterDefinition;
 import com.hubrick.raml.codegen.SchemaMetaInfo;
 import com.hubrick.raml.codegen.UriParameterDefinition;
+import com.hubrick.raml.mojo.antlr.ExtensionTags;
 import com.hubrick.raml.mojo.freemarker.ClassPathTemplateLoader;
 import com.hubrick.raml.mojo.util.JavaNames;
 import com.hubrick.raml.mojo.util.RamlTypes;
@@ -38,6 +39,8 @@ import freemarker.template.TemplateException;
 import freemarker.template.TemplateMethodModelEx;
 import freemarker.template.TemplateModel;
 import freemarker.template.TemplateModelException;
+import org.antlr.runtime.ANTLRStringStream;
+import org.antlr.runtime.Token;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -74,6 +77,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Strings.emptyToNull;
@@ -121,7 +125,7 @@ public class SpringWebResourceMojo extends AbstractMojo {
 
         includedFiles.removeAll(excludedFiles);
 
-        checkState(outputDirectory.mkdirs(), "Unable to create output directory: %s", outputDirectory.getPath());
+        checkState(outputDirectory.exists() || outputDirectory.mkdirs(), "Unable to create output directory: %s", outputDirectory.getPath());
 
         // parse RAML files
         final Map<String, Raml> ramlFileIndex = includedFiles.stream()
@@ -251,19 +255,19 @@ public class SpringWebResourceMojo extends AbstractMojo {
 
         final Collection<UriParameterDefinition> uriParameterDefinitions = action.getResource().getResolvedUriParameters().entrySet().stream()
                 .map(paramEntry -> new UriParameterDefinition(paramEntry.getKey(),
-                        RamlTypes.asJavaTypeName(paramEntry.getValue().getType()),
+                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
                         paramEntry.getValue()))
                 .collect(toList());
 
         final Collection<QueryParameterDefinition> queryParameterDefinitions = action.getQueryParameters().entrySet().stream()
                 .map(paramEntry -> new QueryParameterDefinition(paramEntry.getKey(),
-                        RamlTypes.asJavaTypeName(paramEntry.getValue().getType()),
+                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
                         paramEntry.getValue()))
                 .collect(toList());
 
         final Collection<HeaderDefinition> headerDefinitions = action.getHeaders().entrySet().stream()
                 .map(paramEntry -> new HeaderDefinition(paramEntry.getKey(),
-                        RamlTypes.asJavaTypeName(paramEntry.getValue().getType()),
+                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
                         paramEntry.getValue()))
                 .collect(toList());
 
@@ -277,6 +281,22 @@ public class SpringWebResourceMojo extends AbstractMojo {
         // TODO support form parameters
 
         return actionMetaInfo;
+    }
+
+    private static String parseJavaType(String description) {
+        final ExtensionTags extensionTags = new ExtensionTags(new ANTLRStringStream(description));
+        Token token;
+        do {
+            token = extensionTags.nextToken();
+        } while (token.getType() != ExtensionTags.EOF &&
+                token.getType() != ExtensionTags.JAVA_TYPE_TAG);
+
+        if (token.getType() == ExtensionTags.JAVA_TYPE_TAG) {
+            final String[] chunks = token.getText().split("\\s+");
+            return chunks[1];
+        }
+
+        return null;
     }
 
     private String getBodySchema(Map<String, MimeType> requestBody, String contentType) {
