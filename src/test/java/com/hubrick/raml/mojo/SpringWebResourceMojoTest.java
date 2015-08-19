@@ -49,7 +49,7 @@ public class SpringWebResourceMojoTest {
 
         maven.executeMojo(basedir, "spring-web");
 
-        assertFilesPresent(basedir, "target/generated-sources/tld/example/resources/UsersResource.java");
+        assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
     }
 
 }

@@ -46,7 +46,12 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.model.fileset.FileSet;
 import org.apache.maven.shared.model.fileset.util.FileSetManager;
+import org.jsonschema2pojo.DefaultGenerationConfig;
+import org.jsonschema2pojo.Jackson2Annotator;
+import org.jsonschema2pojo.SchemaGenerator;
 import org.jsonschema2pojo.SchemaMapper;
+import org.jsonschema2pojo.SchemaStore;
+import org.jsonschema2pojo.rules.RuleFactory;
 import org.raml.model.Action;
 import org.raml.model.MimeType;
 import org.raml.model.ParamType;
@@ -90,7 +95,7 @@ public class SpringWebResourceMojo extends AbstractMojo {
     /**
      * Location of the file.
      */
-    @Parameter(defaultValue = "${project.build.directory}/generated-sources", required = true)
+    @Parameter(defaultValue = "${project.build.directory}/generated-sources/raml", required = true)
     private File outputDirectory;
 
     @Parameter(property = "raml.basePackage", defaultValue = "", required = true)
@@ -140,10 +145,28 @@ public class SpringWebResourceMojo extends AbstractMojo {
                         schemaMetaInfo -> schemaMetaInfo));
 
         schemaIndex.values().forEach(schemaMetaInfo -> {
-            getLog().info(JavaNames.joinPackageMembers(schemaMetaInfo.getPackageName(), schemaMetaInfo.getClassName()));
+            if (getLog().isInfoEnabled()) {
+                getLog().info("Generating: " + JavaNames.joinPackageMembers(schemaMetaInfo.getPackageName(), schemaMetaInfo.getClassName()));
+            }
             final JCodeModel jCodeModel = new JCodeModel();
             try {
-                final JType jType = new SchemaMapper().generate(jCodeModel,
+                final RuleFactory ruleFactory = new RuleFactory(new DefaultGenerationConfig() {
+                    @Override
+                    public boolean isIncludeToString() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean isIncludeHashcodeAndEquals() {
+                        return false;
+                    }
+                }, new Jackson2Annotator(), new SchemaStore());
+
+                final SchemaGenerator schemaGenerator = new SchemaGenerator();
+
+                final SchemaMapper schemaMapper = new SchemaMapper(ruleFactory, schemaGenerator);
+
+                final JType jType = schemaMapper.generate(jCodeModel,
                         schemaMetaInfo.getClassName(),
                         schemaMetaInfo.getPackageName(),
                         schemaMetaInfo.getSchema(),
@@ -176,7 +199,6 @@ public class SpringWebResourceMojo extends AbstractMojo {
 
                     // build imports
                     final Collection<String> imports = Stream.of(
-                            Stream.of("org.springframework.web.bind.annotation.RequestController"),
                             actions.stream()
                                     .flatMap(actionMetaInfo -> {
                                         checkState(actionMetaInfo.getRequestBodySchema() == null || schemaIndex.containsKey(InlineSchemaReference.of(file, actionMetaInfo.getRequestBodySchema())),
