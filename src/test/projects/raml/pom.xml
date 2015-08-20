@@ -38,6 +38,11 @@
                             <include>**/*.raml</include>
                         </includes>
                     </fileset>
+                    <schemaGenerator>
+                        <annotationStyle>GSON</annotationStyle>
+                        <generateBuilders>true</generateBuilders>
+                        <usePrimitives>false</usePrimitives>
+                    </schemaGenerator>
                 </configuration>
             </plugin>
         </plugins>

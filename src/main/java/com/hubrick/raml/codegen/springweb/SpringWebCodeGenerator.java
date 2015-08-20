@@ -21,5 +21,5 @@ package com.hubrick.raml.codegen.springweb;
  * @since 1.0.0
  */
 public class SpringWebCodeGenerator {
-
+    // TODO move spring-web code generation from SpringWebResourceMojo to here
 }

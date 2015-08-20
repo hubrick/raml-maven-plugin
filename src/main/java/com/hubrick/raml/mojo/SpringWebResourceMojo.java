@@ -49,11 +49,15 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.model.fileset.FileSet;
 import org.apache.maven.shared.model.fileset.util.FileSetManager;
+import org.jsonschema2pojo.AnnotationStyle;
+import org.jsonschema2pojo.Annotator;
 import org.jsonschema2pojo.DefaultGenerationConfig;
+import org.jsonschema2pojo.GsonAnnotator;
+import org.jsonschema2pojo.Jackson1Annotator;
 import org.jsonschema2pojo.Jackson2Annotator;
+import org.jsonschema2pojo.NoopAnnotator;
 import org.jsonschema2pojo.SchemaGenerator;
 import org.jsonschema2pojo.SchemaMapper;
-import org.jsonschema2pojo.SchemaStore;
 import org.jsonschema2pojo.rules.RuleFactory;
 import org.raml.model.Action;
 import org.raml.model.MimeType;
@@ -75,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
@@ -108,11 +113,22 @@ public class SpringWebResourceMojo extends AbstractMojo {
     @Parameter(property = "raml.modelPackage", defaultValue = "", required = true)
     private String modelPackage;
 
+    @Parameter
+    private SchemaGeneratorConfig schemaGenerator;
+
     /**
      * RAML files to in
      */
     @Parameter
     private FileSet fileset;
+
+    private static final Map<AnnotationStyle, Supplier<Annotator>> ANNOTATOR_SUPPLIER_INDEX = ImmutableMap.of(
+            AnnotationStyle.JACKSON, Jackson2Annotator::new,
+            AnnotationStyle.JACKSON2, Jackson2Annotator::new,
+            AnnotationStyle.JACKSON1, Jackson1Annotator::new,
+            AnnotationStyle.GSON, GsonAnnotator::new,
+            AnnotationStyle.NONE, NoopAnnotator::new
+    );
 
     public void setFileset(FileSet fileset) {
         this.fileset = fileset;
@@ -154,17 +170,10 @@ public class SpringWebResourceMojo extends AbstractMojo {
             }
             final JCodeModel jCodeModel = new JCodeModel();
             try {
-                final RuleFactory ruleFactory = new RuleFactory(new DefaultGenerationConfig() {
-                    @Override
-                    public boolean isIncludeToString() {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean isIncludeHashcodeAndEquals() {
-                        return false;
-                    }
-                }, new Jackson2Annotator(), new SchemaStore());
+                final RuleFactory ruleFactory = new RuleFactory();
+                final GenerationConfigAdapter generationConfig = new GenerationConfigAdapter(schemaGenerator);
+                ruleFactory.setGenerationConfig(generationConfig);
+                ruleFactory.setAnnotator(requireAnnotator(generationConfig.getAnnotationStyle()));
 
                 final SchemaGenerator schemaGenerator = new SchemaGenerator();
 
@@ -243,6 +252,11 @@ public class SpringWebResourceMojo extends AbstractMojo {
                     resources.stream().forEach(generateResourceClass(file, raml, imports, schemaIndex, actions));
                 });
 
+    }
+
+    private static Annotator requireAnnotator(AnnotationStyle annotationStyle) {
+        checkState(ANNOTATOR_SUPPLIER_INDEX.containsKey(annotationStyle), "Illegal annotation style: %s", annotationStyle);
+        return ANNOTATOR_SUPPLIER_INDEX.get(annotationStyle).get();
     }
 
     private ActionMetaInfo createActionMetaInfo(Action action) {
@@ -467,4 +481,102 @@ public class SpringWebResourceMojo extends AbstractMojo {
         }
     }
 
+    private static class GenerationConfigAdapter extends DefaultGenerationConfig {
+
+        private SchemaGeneratorConfig config;
+
+        public GenerationConfigAdapter(SchemaGeneratorConfig config) {
+            this.config = config;
+        }
+
+        @Override
+        public boolean isGenerateBuilders() {
+            return firstNonNull(config.getGenerateBuilders(), super.isGenerateBuilders());
+        }
+
+        @Override
+        public boolean isIncludeToString() {
+            return firstNonNull(config.getIncludeToString(), super.isIncludeToString());
+        }
+
+        @Override
+        public char[] getPropertyWordDelimiters() {
+            return super.getPropertyWordDelimiters();
+        }
+
+        @Override
+        public boolean isUseLongIntegers() {
+            return firstNonNull(config.getUseLongIntegers(), super.isUseLongIntegers());
+        }
+
+        @Override
+        public boolean isUseDoubleNumbers() {
+            return firstNonNull(config.getUseDoubleNumbers(), super.isUseDoubleNumbers());
+        }
+
+        @Override
+        public boolean isIncludeHashcodeAndEquals() {
+            return firstNonNull(config.getIncludeHashcodeAndEquals(), super.isIncludeHashcodeAndEquals());
+        }
+
+        @Override
+        public AnnotationStyle getAnnotationStyle() {
+            return firstNonNull(config.getAnnotationStyle(), super.getAnnotationStyle());
+        }
+
+        @Override
+        public boolean isIncludeJsr303Annotations() {
+            return firstNonNull(config.getIncludeJsr303Annotations(), super.isIncludeJsr303Annotations());
+        }
+
+        @Override
+        public boolean isUseJodaDates() {
+            return firstNonNull(config.getUseJodaDates(), super.isUseJodaDates());
+        }
+
+        @Override
+        public boolean isUseJodaLocalDates() {
+            return firstNonNull(config.getUseJodaLocalDates(), super.isUseJodaLocalDates());
+        }
+
+        @Override
+        public boolean isUseJodaLocalTimes() {
+            return firstNonNull(config.getUseJodaLocalTimes(), super.isUseJodaLocalTimes());
+        }
+
+        @Override
+        public boolean isUseCommonsLang3() {
+            return firstNonNull(config.getUseCommonsLang3(), super.isUseCommonsLang3());
+        }
+
+        @Override
+        public boolean isParcelable() {
+            return firstNonNull(config.getParcelable(), super.isParcelable());
+        }
+
+        @Override
+        public boolean isInitializeCollections() {
+            return firstNonNull(config.getInitializeCollections(), super.isInitializeCollections());
+        }
+
+        @Override
+        public String getClassNamePrefix() {
+            return firstNonNull(config.getClassNamePrefix(), super.getClassNamePrefix());
+        }
+
+        @Override
+        public String getClassNameSuffix() {
+            return firstNonNull(config.getClassNameSuffix(), super.getClassNameSuffix());
+        }
+
+        @Override
+        public boolean isIncludeConstructors() {
+            return firstNonNull(config.getIncludeConstructors(), super.isIncludeConstructors());
+        }
+
+        @Override
+        public boolean isConstructorsRequiredPropertiesOnly() {
+            return firstNonNull(config.getConstructorsRequiredPropertiesOnly(), super.isConstructorsRequiredPropertiesOnly());
+        }
+    }
 }
