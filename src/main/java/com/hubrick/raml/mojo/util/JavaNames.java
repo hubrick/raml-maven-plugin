@@ -18,7 +18,6 @@ package com.hubrick.raml.mojo.util;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.hubrick.raml.mojo.util.impl.BasicIndexed;
-import freemarker.template.utility.StringUtil;
 import org.apache.commons.lang.StringUtils;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,7 +44,7 @@ public final class JavaNames {
         final String[] elements = string.split("(?i:[^a-z0-9]+)");
         return stream(spliterator(elements), false)
                 .map(indexed())
-                .map(element -> element.index() > 0 ? StringUtil.capitalize(element.value()) : element.value())
+                .map(element -> element.index() > 0 ? StringUtils.capitalize(element.value()) : element.value())
                 .collect(Collectors.joining());
     }
 

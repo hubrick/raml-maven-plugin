@@ -31,7 +31,7 @@
         <maven-file-management.version>1.2.1</maven-file-management.version>
 
         <raml-parser.version>0.8.11</raml-parser.version>
-        <freemarker.version>2.3.23</freemarker.version>
+        <codemodel.version>2.6</codemodel.version>
         <guava.version>18.0</guava.version>
         <commons-lang.version>2.1.5</commons-lang.version>
         <antlr.version>3.5.2</antlr.version>
@@ -84,9 +84,9 @@
             <version>${jsonschema2pojo.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.freemarker</groupId>
-            <artifactId>freemarker</artifactId>
-            <version>${freemarker.version}</version>
+            <groupId>com.sun.codemodel</groupId>
+            <artifactId>codemodel</artifactId>
+            <version>${codemodel.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
