@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.hubrick.raml.mojo;
 
 import com.google.common.collect.ImmutableMap;
@@ -34,8 +33,7 @@ import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.Token;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.model.fileset.FileSet;
@@ -58,7 +56,6 @@ import org.raml.parser.visitor.RamlDocumentBuilder;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -73,36 +70,12 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
 /**
- * Generates Spring Web resources out of RAML specifications.
+ * @author ahanin
+ * @since 1.0.0
  */
-@Mojo(name = "spring-web", defaultPhase = LifecyclePhase.GENERATE_SOURCES)
-public class SpringWebResourceMojo extends AbstractMojo {
+public abstract class AbstractSpringWebMojo extends AbstractMojo {
 
     public static final String APPLICATION_JSON = "application/json";
-
-    @Parameter(defaultValue = "${project}", readonly = true)
-    private MavenProject mavenProject;
-
-    /**
-     * Location of the file.
-     */
-    @Parameter(defaultValue = "${project.build.directory}/generated-sources/raml", required = true)
-    private File outputDirectory;
-
-    @Parameter(property = "raml.basePackage", defaultValue = "", required = true)
-    private String basePackage;
-
-    @Parameter(property = "raml.modelPackage", defaultValue = "", required = true)
-    private String modelPackage;
-
-    @Parameter
-    private SchemaGeneratorConfig schemaGenerator;
-
-    /**
-     * RAML files to include in generation.
-     */
-    @Parameter
-    private FileSet fileset;
 
     private static final Map<AnnotationStyle, Supplier<Annotator>> ANNOTATOR_SUPPLIER_INDEX = ImmutableMap.of(
             AnnotationStyle.JACKSON, Jackson2Annotator::new,
@@ -112,14 +85,54 @@ public class SpringWebResourceMojo extends AbstractMojo {
             AnnotationStyle.NONE, NoopAnnotator::new
     );
 
-    public void execute() throws MojoExecutionException {
+    @Parameter(defaultValue = "${project}", readonly = true)
+    protected MavenProject mavenProject;
+
+    @Parameter(property = "raml.basePackage", defaultValue = "", required = true)
+    protected String basePackage;
+
+    @Parameter(property = "raml.modelPackage", defaultValue = "", required = true)
+    protected String modelPackage;
+
+    @Parameter
+    protected SchemaGeneratorConfig schemaGenerator;
+
+    /**
+     * RAML files to include in execution.
+     */
+    @Parameter
+    private FileSet fileset;
+
+    private static Annotator requireAnnotator(AnnotationStyle annotationStyle) {
+        checkState(ANNOTATOR_SUPPLIER_INDEX.containsKey(annotationStyle), "Illegal annotation style: %s", annotationStyle);
+        return ANNOTATOR_SUPPLIER_INDEX.get(annotationStyle).get();
+    }
+
+    @Override
+    public abstract void execute() throws MojoExecutionException, MojoFailureException;
+
+    private static String parseJavaType(String description) {
+        final ExtensionTags extensionTags = new ExtensionTags(new ANTLRStringStream(description));
+        Token token;
+        do {
+            token = extensionTags.nextToken();
+        } while (token.getType() != ExtensionTags.EOF &&
+                token.getType() != ExtensionTags.JAVA_TYPE_TAG);
+
+        if (token.getType() == ExtensionTags.JAVA_TYPE_TAG) {
+            final String[] chunks = token.getText().split("\\s+");
+            return chunks[1];
+        }
+
+        return null;
+    }
+
+    protected JCodeModel generateCodeModel() {
         final FileSetManager fileSetManager = new FileSetManager();
         final List<String> includedFiles = Arrays.asList(fileSetManager.getIncludedFiles(fileset));
         final List<String> excludedFiles = Arrays.asList(fileSetManager.getExcludedFiles(fileset));
 
         includedFiles.removeAll(excludedFiles);
-
-        checkState(outputDirectory.exists() || outputDirectory.mkdirs(), "Unable to create output directory: %s", outputDirectory.getPath());
 
         // parse RAML files
         final Map<String, Raml> ramlFileIndex = includedFiles.stream()
@@ -159,7 +172,7 @@ public class SpringWebResourceMojo extends AbstractMojo {
                         schemaMetaInfo.getClassName(),
                         schemaMetaInfo.getPackageName(),
                         schemaMetaInfo.getSchema(),
-                        URI.create("file://" + new File(fileset.getDirectory(), schemaMetaInfo.getRamlFile())));
+                        new File(fileset.getDirectory(), schemaMetaInfo.getRamlFile()).toURI());
                 schemaMetaInfo.setJType(jType);
 
                 if (getLog().isInfoEnabled()) {
@@ -204,17 +217,7 @@ public class SpringWebResourceMojo extends AbstractMojo {
                         }
                     });
         }
-
-        try {
-            codeModel.build(outputDirectory);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Annotator requireAnnotator(AnnotationStyle annotationStyle) {
-        checkState(ANNOTATOR_SUPPLIER_INDEX.containsKey(annotationStyle), "Illegal annotation style: %s", annotationStyle);
-        return ANNOTATOR_SUPPLIER_INDEX.get(annotationStyle).get();
+        return codeModel;
     }
 
     private ActionMetaInfo createActionMetaInfo(Action action) {
@@ -253,22 +256,6 @@ public class SpringWebResourceMojo extends AbstractMojo {
         // TODO support form parameters
 
         return actionMetaInfo;
-    }
-
-    private static String parseJavaType(String description) {
-        final ExtensionTags extensionTags = new ExtensionTags(new ANTLRStringStream(description));
-        Token token;
-        do {
-            token = extensionTags.nextToken();
-        } while (token.getType() != ExtensionTags.EOF &&
-                token.getType() != ExtensionTags.JAVA_TYPE_TAG);
-
-        if (token.getType() == ExtensionTags.JAVA_TYPE_TAG) {
-            final String[] chunks = token.getText().split("\\s+");
-            return chunks[1];
-        }
-
-        return null;
     }
 
     private String getBodySchema(Map<String, MimeType> requestBody, String contentType) {
@@ -373,5 +360,4 @@ public class SpringWebResourceMojo extends AbstractMojo {
             return firstNonNull(config.getConstructorsRequiredPropertiesOnly(), super.isConstructorsRequiredPropertiesOnly());
         }
     }
-
 }

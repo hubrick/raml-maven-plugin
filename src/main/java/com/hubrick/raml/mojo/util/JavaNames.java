@@ -20,6 +20,7 @@ import com.google.common.base.Strings;
 import com.hubrick.raml.mojo.util.impl.BasicIndexed;
 import org.apache.commons.lang.StringUtils;
 
+import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -70,4 +71,9 @@ public final class JavaNames {
             return className;
         }
     }
+
+    public static String classNameOfPath(String path) {
+        return path.substring(0, path.lastIndexOf(".")).replaceAll(File.separator, ".");
+    }
+
 }
