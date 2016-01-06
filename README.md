@@ -142,6 +142,12 @@ UsersResource.java
     }
 ```
 
+### spring-web-validate
+
+Validates existing code for compliance with resource definitions in RAML files.
+
+    $ mvn raml:spring-web-validate
+
 ## Configuration
 
  Property       | Description
