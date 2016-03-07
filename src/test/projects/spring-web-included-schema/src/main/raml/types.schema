@@ -1,0 +1,12 @@
+{
+  "definitions": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "uri": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}

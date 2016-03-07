@@ -91,16 +91,16 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
     @Parameter(property = "raml.basePackage", defaultValue = "", required = true)
     protected String basePackage;
 
-    @Parameter(property = "raml.modelPackage", defaultValue = "", required = true)
+    @Parameter(property = "raml.modelPackage", defaultValue = "${raml.basePackage}", required = true)
     protected String modelPackage;
 
-    @Parameter
+    @Parameter(property = "raml.schemaGenerator", defaultValue = "${raml.schemaGenerator}", required = true)
     protected SchemaGeneratorConfig schemaGenerator;
 
     /**
      * RAML files to include in execution.
      */
-    @Parameter
+    @Parameter(required = true)
     private FileSet fileset;
 
     private static Annotator requireAnnotator(AnnotationStyle annotationStyle) {

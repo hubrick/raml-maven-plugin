@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "types.schema#/definitions/uuid" },
+    "name": { "type": "string" },
+    "birthdate": { "type": "object", "javaType": "java.util.Date" }
+  }
+}
