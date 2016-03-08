@@ -21,13 +21,14 @@ import io.takari.maven.testing.TestResources;
 import io.takari.maven.testing.executor.MavenRuntime.MavenRuntimeBuilder;
 import io.takari.maven.testing.executor.MavenVersions;
 import io.takari.maven.testing.executor.junit.MavenJUnitTestRunner;
+import org.apache.maven.plugin.MojoFailureException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
+
+import static org.junit.Assert.fail;
 
 /**
  * @author ahanin
@@ -36,8 +37,6 @@ import java.io.File;
 @RunWith(MavenJUnitTestRunner.class)
 @MavenVersions("3.3.3")
 public class SpringWebValidatorMojoTest {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SpringWebValidatorMojoTest.class);
 
     @Rule
     public final TestResources resources = new TestResources();
@@ -52,9 +51,33 @@ public class SpringWebValidatorMojoTest {
     }
 
     @Test
-    public void testShouldValidateControllerInterface() throws Exception {
+    public void succeedOnValidControllerInterface() throws Exception {
         final File basedir = resources.getBasedir("spring-web-validator");
         maven.executeMojo(basedir, "spring-web-validate");
     }
+
+    @Test
+    public void failOnInvalidControllerInterface() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-validator-invalid-interface");
+        try {
+            maven.executeMojo(basedir, "spring-web-validate");
+            fail("Should throw " + MojoFailureException.class.getName());
+        } catch (MojoFailureException e) {
+            // expected behaviour
+        }
+    }
+
+    @Test
+    public void failOnMissingSourceFiles() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-validator-missing-source-files");
+
+        try {
+            maven.executeMojo(basedir, "spring-web-validate");
+            fail("Should throw " + MojoFailureException.class.getName());
+        } catch (MojoFailureException ex) {
+            // expected behaviour
+        }
+    }
+
 
 }

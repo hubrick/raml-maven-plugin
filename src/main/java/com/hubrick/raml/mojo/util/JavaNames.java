@@ -76,4 +76,7 @@ public final class JavaNames {
         return path.substring(0, path.lastIndexOf(".")).replaceAll(File.separator, ".");
     }
 
+    public static String toFilePathString(String className) {
+        return className.replace('.', File.separatorChar) + ".java";
+    }
 }
