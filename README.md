@@ -28,6 +28,15 @@ Add the plugin to your pom.xml in `<build>` section:
         </plugin>
     </plugins>
 
+## Configuration
+
+ Parameter      | Description
+----------------|-------------------------------------------------------
+basePackage     |a package, in which the resource classes will be put in
+modelPackage    |a subpackage, in which the model classes will be put in
+fileset         |where to source `.raml` files from
+schemaGenerator |schema generator settings (see below)
+
 ## Goals
 
 ### spring-web
@@ -35,7 +44,7 @@ Add the plugin to your pom.xml in `<build>` section:
 Generates Spring Web resources. Example:
 
     $ mvn raml:spring-web
- 
+
 users.raml
 ```yaml
 #%RAML 0.8
@@ -78,7 +87,7 @@ schemas:
 User.java
 ```java
     package tld.example.resources.model;
-    
+
     import java.util.Date;
     import java.util.HashMap;
     import java.util.Map;
@@ -93,7 +102,7 @@ User.java
     import org.apache.commons.lang.builder.EqualsBuilder;
     import org.apache.commons.lang.builder.HashCodeBuilder;
     import org.apache.commons.lang.builder.ToStringBuilder;
-    
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @Generated("org.jsonschema2pojo")
     @JsonPropertyOrder({
@@ -102,7 +111,7 @@ User.java
         "birthdate"
     })
     public class User {
-    
+
         @JsonProperty("id")
         private UUID id;
         @JsonProperty("name")
@@ -111,16 +120,16 @@ User.java
         private Date birthdate;
         @JsonIgnore
         private Map<String, Object> additionalProperties = new HashMap<String, Object>();
-        
+
         // ...
-        
+
     }
 ```
 
 UsersResource.java
 ```java
     package tld.example.resources;
-    
+
     import java.util.UUID;
     import org.springframework.web.bind.annotation.PathVariable;
     import org.springframework.web.bind.annotation.RequestBody;
@@ -128,17 +137,17 @@ UsersResource.java
     import org.springframework.web.bind.annotation.RequestMethod;
     import org.springframework.web.bind.annotation.RestController;
     import tld.example.resources.model.User;
-    
+
     @RestController
     @RequestMapping("/")
     public interface UsersResource {
-    
+
         @RequestMapping(value = "/users", method = RequestMethod.POST)
         void postUsers(@RequestBody User user);
-    
+
         @RequestMapping(value = "/users/{userId}", method = RequestMethod.GET)
         User getUsers(@PathVariable("userId") UUID userId);
-    
+
     }
 ```
 
@@ -148,23 +157,46 @@ Validates existing code for compliance with resource definitions in RAML files.
 
     $ mvn raml:spring-web-validate
 
-## Configuration
-
- Property       | Description
+ Parameter      | Description
 ----------------|----------------------------------------------------
-basePackage     |a package, where the resource classes will be put to
-modelPackage    |a subpackage, where the model classes will be put to 
-fileset         |where to source `.raml` files from
-schemaGenerator |schema generator settings (see below)
+includes        |generated source files inclusion filter
+excludes        |generated source files exclusion filter
+
+#### Example
+
+    <plugins>
+        <plugin>
+            <groupId>com.hubrick</groupId>
+            <artifactId>raml-maven-plugin</artifactId>
+            <version>1.0.0</version>
+            <configuration>
+                <basePackage>tld.example.resources</basePackage>
+                <modelPackage>model</modelPackage>
+                <fileset>
+                    <directory>${basedir}/src/main/raml</directory>
+                    <includes>
+                        <include>**/*.raml</include>
+                    </includes>
+                </fileset>
+                <includes>
+                    <param>**/*Resource.java</param>
+                </includes>
+                <schemaGenerator>
+                    <!-- Optionally, change settings -->
+                    <generateBuilders>true</generateBuilders>
+                </schemaGenerator>
+            </configuration>
+        </plugin>
+    </plugins>
 
 ### Schema Generator
 
 The plugin uses [jsonschema2pojo](https://github.com/joelittlejohn/jsonschema2pojo) to generate schemas.
 Below is the list of settings that can go in `schemaConfigurator` section of plugin's configuration:
 
- Property                               | Type    
+ Property                               | Type
 ----------------------------------------|---------
-generateBuilders                        | boolean 
+generateBuilders                        | boolean
 usePrimitives                           | boolean
 propertyWordDelimiters                  | char[]
 useLongIntegers                         | boolean

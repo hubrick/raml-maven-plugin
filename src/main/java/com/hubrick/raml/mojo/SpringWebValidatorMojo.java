@@ -35,20 +35,25 @@ import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.QualifiedNameExpr;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import com.google.common.collect.Sets;
 import com.hubrick.raml.mojo.util.ASTUtils;
 import com.hubrick.raml.mojo.util.JavaNames;
+import com.hubrick.raml.util.Memoized;
 import com.sun.codemodel.CodeWriter;
 import com.sun.codemodel.JCodeModel;
+import com.sun.codemodel.JDefinedClass;
 import com.sun.codemodel.JPackage;
-import org.apache.commons.lang3.tuple.Triple;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
+import org.codehaus.plexus.util.AbstractScanner;
 import org.codehaus.plexus.util.DirectoryScanner;
 import org.javatuples.Pair;
 import org.javatuples.Quintet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -56,9 +61,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -67,8 +74,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.stream.Collectors.joining;
@@ -78,75 +89,155 @@ import static java.util.stream.Collectors.toMap;
 @Mojo(name = "spring-web-validate", defaultPhase = LifecyclePhase.VERIFY)
 public class SpringWebValidatorMojo extends AbstractSpringWebMojo {
 
+    @org.apache.maven.plugins.annotations.Parameter(property = "raml.validate.include")
+    private List<String> includes;
+
+    @org.apache.maven.plugins.annotations.Parameter(property = "raml.validate.exclude")
+    private List<String> excludes;
+
+    private static class ValidationUnit {
+
+        private JDefinedClass model;
+        private Memoized<File> generatedSourceFile = Memoized.of(() -> new File(JavaNames.toFilePathString(model.fullName())));
+        private Optional<File> sourceFile;
+
+        public ValidationUnit(JDefinedClass model, Optional<File> sourceFile) {
+            this.model = model;
+            this.sourceFile = sourceFile;
+        }
+
+        public JDefinedClass getModel() {
+            return model;
+        }
+
+        public File getGeneratedSourceFile() {
+            return generatedSourceFile.get();
+        }
+
+        public Optional<File> getSourceFile() {
+            return sourceFile;
+        }
+    }
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         final JCodeModel codeModel = generateCodeModel();
 
-        final List<Triple<String, String, String>> files = mavenProject.getCompileSourceRoots().stream()
+        final Map<String, File> classFileIndex = mavenProject.getCompileSourceRoots().stream()
                 .flatMap(sourceRoot -> {
                     final DirectoryScanner directoryScanner = new DirectoryScanner();
                     directoryScanner.setBasedir(sourceRoot);
                     directoryScanner.setIncludes(new String[]{"**/*.java"});
                     directoryScanner.scan();
-                    return Arrays.asList(directoryScanner.getIncludedFiles()).stream()
-                            .map(filePath -> Triple.of(sourceRoot, filePath, JavaNames.classNameOfPath(filePath)));
+                    return Arrays.stream(directoryScanner.getIncludedFiles())
+                            .map(filePath -> {
+                                final String className = JavaNames.classNameOfPath(filePath);
+                                return Pair.with(className, new File(sourceRoot, filePath));
+                            });
                 })
-                .filter(t -> {
-                    final String className = t.getRight();
-                    return codeModel._getClass(className) != null;
-                })
+                .collect(toMap(Pair::getValue0, Pair::getValue1));
+
+        final Collection<ValidationUnit> validationUnits = StreamSupport.stream(Spliterators.spliteratorUnknownSize(codeModel.packages(), Spliterator.DISTINCT | Spliterator.NONNULL), false)
+                .flatMap(pkg -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(pkg.classes(), Spliterator.DISTINCT | Spliterator.NONNULL), false))
+                .map(klass -> new ValidationUnit(klass, Optional.ofNullable(classFileIndex.get(klass.fullName()))))
                 .collect(toList());
 
-        if (!files.isEmpty()) {
-            final InMemoryCodeWriter inMemoryCodeWriter = new InMemoryCodeWriter();
-            try {
-                codeModel.build(inMemoryCodeWriter);
-            } catch (IOException e) {
-                throw new RuntimeException("Couldn't build generated sources", e);
-            }
+        if (!validationUnits.isEmpty()) {
 
-            final Map<String, List<String>> fileValidationMessages = files.stream()
-                    .filter(t -> inMemoryCodeWriter.countainsFile(new File(t.getMiddle())))
-                    .map(t -> {
-                        final String sourceFilePath = t.getMiddle();
-                        final List<String> messages = validateFile(new File(t.getLeft(), sourceFilePath), inMemoryCodeWriter.getSource(new File(sourceFilePath)));
-                        return Pair.with(sourceFilePath, messages);
-                    })
-                    .filter(e -> !e.getValue1().isEmpty())
-                    .collect(toMap(Pair::getValue0, Pair::getValue1));
+            final GenericScanner generatedSourceScanner = new GenericScanner(() -> {
+                final Iterator<String> i = validationUnits.stream()
+                        .map(validationUnit -> validationUnit.getGeneratedSourceFile().getPath())
+                        .iterator();
 
-            if (!fileValidationMessages.isEmpty()) {
-                final List<String> longMessage = Stream.concat(
-                        Stream.of("REST controller source code validation failed"),
-                        fileValidationMessages.entrySet().stream().flatMap(e -> Stream.concat(Stream.of(e.getKey() + ":"), e.getValue().stream()))
-                ).collect(toList());
+                return () -> i;
+            });
 
-                final Log log = getLog();
-                if (log.isErrorEnabled()) {
-                    longMessage.forEach(log::error);
+            final List<String> includes = Optional.of(this.includes).filter(i -> !i.isEmpty()).orElse(Collections.singletonList("**/*"));
+            generatedSourceScanner.setIncludes(includes.toArray(new String[includes.size()]));
+            generatedSourceScanner.setExcludes(excludes.toArray(new String[excludes.size()]));
+            generatedSourceScanner.scan();
+
+            final Set<String> generatedSourceFiles = Sets.newHashSet(generatedSourceScanner.getIncludedFiles());
+
+            getLog().info("Generated source files: " + generatedSourceFiles.stream().collect(joining(", ", "[", "]")));
+
+            final List<ValidationUnit> includedValidationUnits = validationUnits.stream()
+                    .filter(validationUnit -> generatedSourceFiles.contains(validationUnit.getGeneratedSourceFile().getPath()))
+                    .collect(toList());
+
+            validateMissingSources(includedValidationUnits);
+
+            if (!includedValidationUnits.isEmpty()) {
+
+                final InMemoryCodeWriter inMemoryCodeWriter = new InMemoryCodeWriter();
+                try {
+                    codeModel.build(inMemoryCodeWriter);
+                } catch (IOException e) {
+                    throw new RuntimeException("Couldn't build generated sources", e);
                 }
 
-                throw new MojoFailureException(null, "REST controller source code validation failed", longMessage.stream().collect(joining(System.lineSeparator())));
+                final Map<String, List<String>> fileValidationMessages = includedValidationUnits.stream()
+                        .map(t -> {
+                            checkState(inMemoryCodeWriter.countainsFile(t.getGeneratedSourceFile()), "%s is not part of generated code", t.getGeneratedSourceFile());
+
+                            final String sourceFilePath = t.getGeneratedSourceFile().getPath();
+                            final byte[] sourceFileContent;
+                            try {
+                                sourceFileContent = Files.readAllBytes(t.getSourceFile().get().toPath());
+                            } catch (IOException e) {
+                                throw new RuntimeException("Failed reading source file: " + t.getSourceFile().get().getParent());
+                            }
+                            final List<String> messages = validateFile(sourceFileContent, inMemoryCodeWriter.getSource(new File(sourceFilePath)));
+                            return Pair.with(sourceFilePath, messages);
+                        })
+                        .filter(e -> !e.getValue1().isEmpty())
+                        .collect(toMap(Pair::getValue0, Pair::getValue1));
+
+                if (!fileValidationMessages.isEmpty()) {
+                    final List<String> longMessage = Stream.concat(
+                            Stream.of("REST controller source code validation failed"),
+                            fileValidationMessages.entrySet().stream().flatMap(e -> Stream.concat(Stream.of(e.getKey() + ":"), e.getValue().stream()))
+                    ).collect(toList());
+
+                    final Log log = getLog();
+                    if (log.isErrorEnabled()) {
+                        longMessage.forEach(log::error);
+                    }
+
+                    throw new MojoFailureException(null, "REST controller source code validation failed", longMessage.stream().collect(joining(System.lineSeparator())));
+                }
+            } else {
+                getLog().info("Nothing to validate");
             }
         }
     }
 
-    private List<String> validateFile(File sourceFile, byte[] generatedSource) {
+    private void validateMissingSources(Collection<ValidationUnit> validationUnits) throws MojoFailureException {
+        final Collection<String> missingSourceClasses = validationUnits.stream()
+                .filter(t -> !t.getSourceFile().isPresent())
+                .map(t -> t.getModel().fullName())
+                .collect(toList());
+
+        if (!missingSourceClasses.isEmpty()) {
+            throw new MojoFailureException("No sources found for classes: " + missingSourceClasses.stream().collect(joining(", ")));
+        }
+    }
+
+    private List<String> validateFile(byte[] sourceFileContent, byte[] generatedSourceFileContent) {
         final CompilationUnit sourceCu;
         try {
-            sourceCu = JavaParser.parse(sourceFile);
+            sourceCu = JavaParser.parse(new ByteArrayInputStream(sourceFileContent));
         } catch (ParseException e) {
-            throw new RuntimeException("Couldn't parse source file: " + sourceFile, e);
-        } catch (IOException e) {
-            throw new RuntimeException("Couldn't read source file: " + sourceFile, e);
+            throw new RuntimeException("Couldn't parse source file: " + sourceFileContent, e);
         }
 
         final List<String> messages = new ArrayList<>();
         for (TypeDeclaration typeDeclaration : sourceCu.getTypes()) {
+
             final String className = sourceCu.getPackage().getName() + "." + typeDeclaration.getName();
 
             final CompilationUnit targetCu;
-            try (final InputStreamReader generatedSourceReader = new InputStreamReader(new ByteArrayInputStream(generatedSource))) {
+            try (final InputStreamReader generatedSourceReader = new InputStreamReader(new ByteArrayInputStream(generatedSourceFileContent))) {
                 try {
                     targetCu = JavaParser.parse(generatedSourceReader, false);
                 } catch (ParseException e) {
@@ -200,6 +291,61 @@ public class SpringWebValidatorMojo extends AbstractSpringWebMojo {
 
         public boolean countainsFile(File file) {
             return sourceIndex.containsKey(file);
+        }
+    }
+
+    private static class GenericScanner extends AbstractScanner {
+
+        private Logger logger = LoggerFactory.getLogger(getClass());
+
+        private Set<String> includedFiles = new HashSet<>();
+        private Set<String> excludedFiles = new HashSet<>();
+
+        private Supplier<Iterable<String>> files;
+
+        private GenericScanner(Supplier<Iterable<String>> files) {
+            this.files = files;
+        }
+
+        @Override
+        public void scan() {
+            if (this.includes == null) {
+                this.includes = new String[]{"**/*"};
+            }
+
+            if (this.excludes == null) {
+                this.excludes = new String[0];
+            }
+
+            this.includedFiles.clear();
+
+            logger.info("Scanning generated sources (includes={}, excludes={})", Arrays.stream(this.includes).collect(joining(", ")), Arrays.stream(this.excludes).collect(joining(", ")));
+
+            setupMatchPatterns();
+
+            for (String file : files.get()) {
+                if (isIncluded(file)) {
+                    this.includedFiles.add(file);
+                }
+                if (isExcluded(file)) {
+                    this.excludedFiles.add(file);
+                }
+            }
+        }
+
+        @Override
+        public String[] getIncludedFiles() {
+            return this.includedFiles.toArray(new String[this.includedFiles.size()]);
+        }
+
+        @Override
+        public String[] getIncludedDirectories() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public File getBasedir() {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -266,9 +412,9 @@ public class SpringWebValidatorMojo extends AbstractSpringWebMojo {
                     message = String.format("%s %s at %d:%d %s",
                             diffStatus.name(),
                             target.toStringWithoutComments(),
-                            sourceParent.getBeginLine(),
-                            sourceParent.getBeginColumn(),
-                            sourceParent.toStringWithoutComments());
+                            sourceParent != null ? sourceParent.getBeginLine() : null,
+                            sourceParent != null ? sourceParent.getBeginColumn() : null,
+                            sourceParent != null ? sourceParent.toStringWithoutComments() : null);
                     break;
                 case MISMATCH:
                     message = String.format("%s %s at %d:%d, expected %s",

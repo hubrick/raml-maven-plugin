@@ -91,7 +91,7 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
     @Parameter(property = "raml.basePackage", defaultValue = "", required = true)
     protected String basePackage;
 
-    @Parameter(property = "raml.modelPackage", defaultValue = "${raml.basePackage}", required = true)
+    @Parameter(property = "raml.modelPackage", defaultValue = "model", required = true)
     protected String modelPackage;
 
     @Parameter(property = "raml.schemaGenerator", defaultValue = "${raml.schemaGenerator}", required = true)
