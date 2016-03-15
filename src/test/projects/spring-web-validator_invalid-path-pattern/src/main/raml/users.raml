@@ -1,0 +1,37 @@
+#%RAML 0.8
+title:
+
+/users:
+  post:
+    body:
+      application/json:
+        schema: user
+  /{userId}:
+    uriParameters:
+      userId:
+        type: string
+        pattern: |
+          @x-ref tld.example.util.RegexpPatterns.UUID
+        description: |
+          @x-javaType java.util.UUID
+    get:
+      responses:
+        200:
+          body:
+            application/json:
+              schema: user
+              example: |
+                  { "id": "99648e19-fcf4-4227-b9e9-99b0fc5e3f2c",
+                    "name": "John Doe",
+                    "birthdate": "1970-01-01" }
+
+schemas:
+  - user: |
+      {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "types.json#/definitions/uuid" },
+          "name": { "type": "string" },
+          "birthdate": { "type": "object", "javaType": "java.util.Date" }
+        }
+      }

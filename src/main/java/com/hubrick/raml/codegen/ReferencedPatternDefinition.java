@@ -16,16 +16,19 @@
 
 package com.hubrick.raml.codegen;
 
-import org.raml.model.parameter.Header;
-
 /**
  * @author ahanin
  * @since 1.0.0
  */
-public class HeaderDefinition extends AbstractParameterDefinition<Header> {
+public class ReferencedPatternDefinition implements PatternDefinition {
 
-    public HeaderDefinition(String name, String javaType, PatternDefinition pattern, Header uriParameter) {
-        super(name, javaType, pattern, uriParameter);
+    private String reference;
+
+    public ReferencedPatternDefinition(String reference) {
+        this.reference = reference;
     }
 
+    public String getReference() {
+        return reference;
+    }
 }

@@ -24,8 +24,8 @@ import org.raml.model.parameter.QueryParameter;
  */
 public class QueryParameterDefinition extends AbstractParameterDefinition<QueryParameter> {
 
-    public QueryParameterDefinition(String name, String javaType, QueryParameter uriParameter) {
-        super(name, javaType, uriParameter);
+    public QueryParameterDefinition(String name, String javaType, PatternDefinition pattern, QueryParameter uriParameter) {
+        super(name, javaType, pattern, uriParameter);
     }
 
 }

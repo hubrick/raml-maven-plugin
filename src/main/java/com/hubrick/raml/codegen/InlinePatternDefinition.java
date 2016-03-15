@@ -20,33 +20,15 @@ package com.hubrick.raml.codegen;
  * @author ahanin
  * @since 1.0.0
  */
-public class AbstractParameterDefinition<T> {
+public class InlinePatternDefinition implements PatternDefinition {
 
-    private final String name;
-    private final String javaType;
-    private final PatternDefinition pattern;
-    private final T originalParameter;
+    private final String pattern;
 
-    public AbstractParameterDefinition(String name, String javaType, PatternDefinition pattern, T originalParameter) {
-        this.name = name;
-        this.javaType = javaType;
+    public InlinePatternDefinition(String pattern) {
         this.pattern = pattern;
-        this.originalParameter = originalParameter;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public String getJavaType() {
-        return javaType;
-    }
-
-    public PatternDefinition getPattern() {
+    public String getPattern() {
         return pattern;
-    }
-
-    public T get() {
-        return originalParameter;
     }
 }
