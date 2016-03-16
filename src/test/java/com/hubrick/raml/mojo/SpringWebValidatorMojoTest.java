@@ -96,4 +96,10 @@ public class SpringWebValidatorMojoTest {
         }
     }
 
+    @Test
+    public void succeedOnValidRelativeUriRequestMapping() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-validator_relative-uri");
+        maven.executeMojo(basedir, "spring-web-validate");
+    }
+
 }

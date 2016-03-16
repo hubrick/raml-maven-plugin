@@ -409,20 +409,24 @@ public class SpringWebValidatorMojo extends AbstractSpringWebMojo {
             final String message;
             switch (diffStatus) {
                 case MISSING:
-                    message = String.format("%s %s at %d:%d %s",
-                            diffStatus.name(),
-                            target.toStringWithoutComments(),
-                            sourceParent != null ? sourceParent.getBeginLine() : null,
-                            sourceParent != null ? sourceParent.getBeginColumn() : null,
-                            sourceParent != null ? sourceParent.toStringWithoutComments() : null);
+                    message = sourceParent != null ?
+                            String.format("%s %s at %d:%d %s",
+                                    diffStatus.name(),
+                                    target.toStringWithoutComments(),
+                                    sourceParent.getBeginLine(),
+                                    sourceParent.getBeginColumn(),
+                                    sourceParent.toStringWithoutComments()) :
+                            String.format("%s %s",
+                                    diffStatus.name(),
+                                    target.toStringWithoutComments());
                     break;
                 case MISMATCH:
                     message = String.format("%s %s at %d:%d, expected %s",
                             diffStatus.name(),
-                            target.toStringWithoutComments(),
+                            source.toStringWithoutComments(),
                             source.getBeginLine(),
                             source.getBeginColumn(),
-                            source.toStringWithoutComments());
+                            target.toStringWithoutComments());
                     break;
                 default:
                     throw new IllegalStateException("Unexpected diff status: " + diffStatus);
@@ -527,8 +531,8 @@ public class SpringWebValidatorMojo extends AbstractSpringWebMojo {
             return false;
         }
 
-        if (node instanceof AnnotationExpr && AnnotationExpr.class.cast(node).getName().equals(AnnotationExpr.class.cast(candidate).getName())) {
-            return true;
+        if (node instanceof AnnotationExpr) {
+            return AnnotationExpr.class.cast(node).getName().getName().equals(AnnotationExpr.class.cast(candidate).getName().getName());
         }
 
         if (node instanceof MemberValuePair && MemberValuePair.class.cast(node).getName().equals(MemberValuePair.class.cast(candidate).getName())) {
