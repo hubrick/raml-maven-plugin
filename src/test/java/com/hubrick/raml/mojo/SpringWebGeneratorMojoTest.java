@@ -16,21 +16,29 @@
 
 package com.hubrick.raml.mojo;
 
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParseException;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import io.takari.maven.testing.TestMavenRuntime;
 import io.takari.maven.testing.TestResources;
 import io.takari.maven.testing.executor.MavenRuntime;
 import io.takari.maven.testing.executor.MavenVersions;
 import io.takari.maven.testing.executor.junit.MavenJUnitTestRunner;
-import org.apache.maven.plugin.MojoFailureException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Optional;
 
 import static io.takari.maven.testing.TestResources.assertFilesPresent;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 
 /**
  * @author ahanin
@@ -39,8 +47,6 @@ import static io.takari.maven.testing.TestResources.assertFilesPresent;
 @RunWith(MavenJUnitTestRunner.class)
 @MavenVersions("3.3.3")
 public class SpringWebGeneratorMojoTest {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SpringWebGeneratorMojoTest.class);
 
     @Rule
     public final TestResources resources = new TestResources();
@@ -55,14 +61,84 @@ public class SpringWebGeneratorMojoTest {
     }
 
     @Test
-    public void testShouldGenerateResourceInterface() throws Exception {
-        final File basedir = resources.getBasedir("spring-web");
-
-        LOGGER.debug("Basedir: {}", basedir);
+    public void generateResourceInterface() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-generator");
 
         maven.executeMojo(basedir, "spring-web");
 
         assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
+    }
+
+    @Test
+    public void generateModelClassDefinedInIncludedSchema() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-generator_included-schema");
+
+        maven.executeMojo(basedir, "spring-web");
+
+        assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/model/User.java");
+    }
+
+    @Test
+    public void defineUriParameterWithValueReference() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-generator_uri-parameter-pattern-value-ref");
+
+        maven.executeMojo(basedir, "spring-web");
+
+        assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
+
+        final File file = new File(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
+
+        final MethodDeclaration methodDeclaration = getMethodDeclaration(getClassDeclaration(file), "getUsers");
+
+        final Optional<NormalAnnotationExpr> requestMapping = methodDeclaration.getAnnotations().stream()
+                .filter(NormalAnnotationExpr.class::isInstance)
+                .map(NormalAnnotationExpr.class::cast)
+                .filter(a -> a.getName().getName().equals("RequestMapping"))
+                .findFirst();
+
+        assertThat("@RequestMapping annotation with 'value' parameter generated", requestMapping.isPresent(), is(true));
+
+        final Optional<MemberValuePair> valueAttribute = requestMapping.get().getPairs().stream()
+                .filter(pair -> pair.getName().equals("value"))
+                .findFirst();
+
+        assertThat("@RequestMapping.value generated", requestMapping.isPresent(), is(true));
+
+        assertThat("@RequestMapping value contains pattern reference",
+                valueAttribute.get().getValue().toStringWithoutComments(),
+                is("\"/users/{userId:\" + RegexPatterns.UUID_REGEX + \"}\""));
+    }
+
+    private static MethodDeclaration getMethodDeclaration(ClassOrInterfaceDeclaration controllerDeclaration, String methodName) {
+        Optional<MethodDeclaration> getUsersMethod = controllerDeclaration.getMembers().stream()
+                .filter(MethodDeclaration.class::isInstance)
+                .map(MethodDeclaration.class::cast)
+                .filter(method -> method.getName().equals(methodName))
+                .findFirst();
+
+        assertThat("'" + methodName + "' method generated", getUsersMethod.isPresent(), is(true));
+
+        return getUsersMethod.get();
+    }
+
+    private static ClassOrInterfaceDeclaration getClassDeclaration(File file) throws ParseException, IOException {
+        final CompilationUnit compilationUnit = JavaParser.parse(file);
+        final String filename = file.getName();
+        final String className = filename.replaceAll("(.*)\\.java$", "$1");
+
+        if (className.length() == file.getName().length()) {
+            throw new IllegalStateException("Couldn't extract [Java] class name from filename: " + filename);
+        }
+
+        Optional<ClassOrInterfaceDeclaration> classDeclaration = compilationUnit.getTypes().stream()
+                .filter(ClassOrInterfaceDeclaration.class::isInstance)
+                .map(ClassOrInterfaceDeclaration.class::cast)
+                .filter(declaration -> declaration.getName().equals(className))
+                .findFirst();
+
+        assertThat("class " + className + " generated", classDeclaration.isPresent(), is(true));
+
+        return classDeclaration.get();
     }
 
 }

@@ -4,17 +4,21 @@ options {filter=true;}
 @lexer::header { package com.hubrick.raml.mojo.antlr; }
 
 JAVA_TYPE_TAG
-    : '@' 'x-javaType' (WS TYPE)?
-	;
+    : '@' 'x-javaType' (WS REF)
+        ;
+
+REF_TAG
+    : '@' 'x-ref' (WS REF)
+        ;
 
 fragment
-TYPE
+REF
     : ID ('.' ID)*
     ;
 
 fragment
 ID
-    :   ('a'..'z'|'A'..'Z'|'_') ('a'..'z'|'A'..'Z'|'_'|'-'|'0'..'9')*
+    :   ('a'..'z'|'A'..'Z'|'_'|'$') ('a'..'z'|'A'..'Z'|'_'|'$'|'0'..'9')*
     ;
 
 fragment

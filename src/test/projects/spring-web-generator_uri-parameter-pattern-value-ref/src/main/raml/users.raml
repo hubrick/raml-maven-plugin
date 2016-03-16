@@ -1,0 +1,13 @@
+#%RAML 0.8
+title:
+
+/users:
+  /{userId}:
+    uriParameters:
+      userId:
+        type: string
+        pattern: |
+          @x-ref com.hubrick.service.common.util.RegexPatterns.UUID_REGEX
+        description: |
+          @x-javaType java.util.UUID
+    get:

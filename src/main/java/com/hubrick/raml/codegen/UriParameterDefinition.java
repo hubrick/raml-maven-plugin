@@ -23,8 +23,8 @@ import org.raml.model.parameter.UriParameter;
  */
 public class UriParameterDefinition extends AbstractParameterDefinition<UriParameter> {
 
-    public UriParameterDefinition(String name, String javaType, UriParameter uriParameter) {
-        super(name, javaType, uriParameter);
+    public UriParameterDefinition(String name, String javaType, PatternDefinition pattern, UriParameter uriParameter) {
+        super(name, javaType, pattern, uriParameter);
     }
 
 }

@@ -58,7 +58,7 @@ public class SpringWebValidatorMojoTest {
 
     @Test
     public void failOnInvalidControllerInterface() throws Exception {
-        final File basedir = resources.getBasedir("spring-web-validator-invalid-interface");
+        final File basedir = resources.getBasedir("spring-web-validator_invalid-interface");
         try {
             maven.executeMojo(basedir, "spring-web-validate");
             fail("Should throw " + MojoFailureException.class.getName());
@@ -69,7 +69,7 @@ public class SpringWebValidatorMojoTest {
 
     @Test
     public void failOnMissingSourceFiles() throws Exception {
-        final File basedir = resources.getBasedir("spring-web-validator-missing-source-files");
+        final File basedir = resources.getBasedir("spring-web-validator_missing-source-files");
 
         try {
             maven.executeMojo(basedir, "spring-web-validate");
@@ -79,5 +79,21 @@ public class SpringWebValidatorMojoTest {
         }
     }
 
+    @Test
+    public void succeedOnValidRequestMappingPattern() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-validator_valid-path-pattern");
+        maven.executeMojo(basedir, "spring-web-validate");
+    }
+
+    @Test
+    public void failOnInvalidRequestMappingPattern() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-validator_invalid-path-pattern");
+        try {
+            maven.executeMojo(basedir, "spring-web-validate");
+            fail("Should throw " + MojoFailureException.class.getName());
+        } catch (MojoFailureException ex) {
+            // expected behaviour
+        }
+    }
 
 }

@@ -18,8 +18,11 @@ package com.hubrick.raml.mojo;
 import com.google.common.collect.ImmutableMap;
 import com.hubrick.raml.codegen.ActionMetaInfo;
 import com.hubrick.raml.codegen.HeaderDefinition;
+import com.hubrick.raml.codegen.InlinePatternDefinition;
 import com.hubrick.raml.codegen.InlineSchemaReference;
+import com.hubrick.raml.codegen.PatternDefinition;
 import com.hubrick.raml.codegen.QueryParameterDefinition;
+import com.hubrick.raml.codegen.ReferencedPatternDefinition;
 import com.hubrick.raml.codegen.SchemaMetaInfo;
 import com.hubrick.raml.codegen.UriParameterDefinition;
 import com.hubrick.raml.codegen.springweb.RestControllerClassGenerator;
@@ -229,21 +232,28 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
                 .findFirst();
 
         final Collection<UriParameterDefinition> uriParameterDefinitions = action.getResource().getResolvedUriParameters().entrySet().stream()
-                .map(paramEntry -> new UriParameterDefinition(paramEntry.getKey(),
-                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
-                        paramEntry.getValue()))
+                .map(paramEntry ->
+                        new UriParameterDefinition(
+                                paramEntry.getKey(),
+                                firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
+                                paramEntry.getValue().getPattern() != null ? parsePatternDefinition(paramEntry.getValue().getPattern()) : null,
+                                paramEntry.getValue()))
                 .collect(toList());
 
         final Collection<QueryParameterDefinition> queryParameterDefinitions = action.getQueryParameters().entrySet().stream()
-                .map(paramEntry -> new QueryParameterDefinition(paramEntry.getKey(),
-                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
-                        paramEntry.getValue()))
+                .map(paramEntry ->
+                        new QueryParameterDefinition(paramEntry.getKey(),
+                                firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
+                                paramEntry.getValue().getPattern() != null ? parsePatternDefinition(paramEntry.getValue().getPattern()) : null,
+                                paramEntry.getValue()))
                 .collect(toList());
 
         final Collection<HeaderDefinition> headerDefinitions = action.getHeaders().entrySet().stream()
-                .map(paramEntry -> new HeaderDefinition(paramEntry.getKey(),
-                        firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
-                        paramEntry.getValue()))
+                .map(paramEntry ->
+                        new HeaderDefinition(paramEntry.getKey(),
+                                firstNonNull(parseJavaType(nullToEmpty(paramEntry.getValue().getDescription())), RamlTypes.asJavaTypeName(paramEntry.getValue().getType())),
+                                paramEntry.getValue().getPattern() != null ? parsePatternDefinition(paramEntry.getValue().getPattern()) : null,
+                                paramEntry.getValue()))
                 .collect(toList());
 
         final ActionMetaInfo actionMetaInfo = new ActionMetaInfo();
@@ -256,6 +266,22 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
         // TODO support form parameters
 
         return actionMetaInfo;
+    }
+
+    private PatternDefinition parsePatternDefinition(String pattern) {
+        final ExtensionTags extensionTags = new ExtensionTags(new ANTLRStringStream(pattern));
+        Token token;
+        do {
+            token = extensionTags.nextToken();
+        } while (token.getType() != ExtensionTags.EOF &&
+                token.getType() != ExtensionTags.REF_TAG);
+
+        if (token.getType() == ExtensionTags.REF_TAG) {
+            final String[] chunks = token.getText().split("\\s+");
+            return new ReferencedPatternDefinition(chunks[1]);
+        }
+
+        return new InlinePatternDefinition(pattern);
     }
 
     private String getBodySchema(Map<String, MimeType> requestBody, String contentType) {
