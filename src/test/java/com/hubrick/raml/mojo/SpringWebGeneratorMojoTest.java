@@ -21,6 +21,7 @@ import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import io.takari.maven.testing.TestMavenRuntime;
@@ -34,6 +35,7 @@ import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 import static io.takari.maven.testing.TestResources.assertFilesPresent;
@@ -107,6 +109,22 @@ public class SpringWebGeneratorMojoTest {
         assertThat("@RequestMapping value contains pattern reference",
                 valueAttribute.get().getValue().toStringWithoutComments(),
                 is("\"/users/{userId:\" + RegexPatterns.UUID_REGEX + \"}\""));
+    }
+
+    @Test
+    public void defineContentTypeWithExtension() throws Exception {
+        final File basedir = resources.getBasedir("spring-web-generator_json-extension-included-schema");
+
+        maven.executeMojo(basedir, "spring-web");
+
+        assertFilesPresent(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
+
+        final File file = new File(basedir, "target/generated-sources/raml/tld/example/resources/UsersResource.java");
+
+        final MethodDeclaration methodDeclaration = getMethodDeclaration(getClassDeclaration(file), "postUsers");
+        final List<Parameter> parameters = methodDeclaration.getParameters();
+
+        assertThat("Parameters in generated method", parameters.size(), is(1));
     }
 
     private static MethodDeclaration getMethodDeclaration(ClassOrInterfaceDeclaration controllerDeclaration, String methodName) {

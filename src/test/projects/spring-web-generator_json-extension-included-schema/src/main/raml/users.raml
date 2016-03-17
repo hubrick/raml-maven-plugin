@@ -1,0 +1,11 @@
+#%RAML 1.0
+title:
+
+/users:
+  post:
+    body:
+      application/vnd.user+json:
+        schema: user
+
+schemas:
+  - user: !include user.schema

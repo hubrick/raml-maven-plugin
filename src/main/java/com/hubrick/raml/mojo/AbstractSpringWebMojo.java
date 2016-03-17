@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -224,7 +225,7 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
     }
 
     private ActionMetaInfo createActionMetaInfo(Action action) {
-        final Map<String, MimeType> requestBody = action.getBody();
+        final Optional<Map<String, MimeType>> requestBody = Optional.ofNullable(action.getBody());
 
         final Optional<Map<String, MimeType>> responseMap = action.getResponses().entrySet().stream()
                 .filter(e -> e.getKey().startsWith("2"))
@@ -258,7 +259,7 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
 
         final ActionMetaInfo actionMetaInfo = new ActionMetaInfo();
         actionMetaInfo.setAction(action);
-        actionMetaInfo.setRequestBodySchema(getBodySchema(requestBody, APPLICATION_JSON));
+        actionMetaInfo.setRequestBodySchema(requestBody.isPresent() ? getBodySchema(requestBody.get(), APPLICATION_JSON) : null);
         actionMetaInfo.setResponseBodySchema(responseMap.isPresent() ? getBodySchema(responseMap.get(), APPLICATION_JSON) : null);
         actionMetaInfo.setUriParameterDefinitions(uriParameterDefinitions);
         actionMetaInfo.setQueryParameterDefinitions(queryParameterDefinitions);
@@ -285,7 +286,24 @@ public abstract class AbstractSpringWebMojo extends AbstractMojo {
     }
 
     private String getBodySchema(Map<String, MimeType> requestBody, String contentType) {
-        return requestBody != null && requestBody.containsKey(contentType) ? requestBody.get(APPLICATION_JSON).getSchema() : null;
+        if (requestBody == null) {
+            return null;
+        }
+
+        final String[] split = contentType.split("/", 2);
+        if (split.length != 2) {
+            return null;
+        }
+
+        final String extensionReplacementRegexp = String.format("(?<=%s/)(.*\\+)(?=%s)",
+                Pattern.quote(split[0]),
+                Pattern.quote(split[1]));
+
+        return requestBody.entrySet().stream()
+                .filter(e -> e.getKey().replaceAll(extensionReplacementRegexp, "").equals(contentType))
+                .map(e -> e.getValue())
+                .map(e -> e.getSchema())
+                .findFirst().orElse(null);
     }
 
     private static class GenerationConfigAdapter extends DefaultGenerationConfig {
